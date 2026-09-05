@@ -35,7 +35,7 @@ OLLAMA_URL = "http://localhost:11434"
 # Dossier ou les .gguf telecharges sont stockes avant d'etre enregistres
 # dans Ollama (modifiable dans le panel).
 DEFAULT_MODELS_DIR = os.path.join(
-    os.path.expanduser("~"), "qwen_blender_models"
+    os.path.expanduser("~"), "llm_blender_models"
 )
 
 # ---------------------------------------------------------------------------
@@ -190,10 +190,10 @@ def _hf_available():
         return False
 
 
-class QWEN_OT_install_deps(bpy.types.Operator):
+class LLM_OT_install_deps(bpy.types.Operator):
     """Installe huggingface_hub dans le Python de Blender (telechargement
     plus robuste, avec reprise) - facultatif, le scan fonctionne sans"""
-    bl_idname = "qwen.install_deps"
+    bl_idname = "llm.install_deps"
     bl_label = "Installer huggingface_hub"
 
     def execute(self, context):
@@ -321,7 +321,7 @@ def recommend_models(vram_budget_gb, prefer_coder=False):
 # Property groups
 # ---------------------------------------------------------------------------
 
-class QwenModelItem(bpy.types.PropertyGroup):
+class LLMModelItem(bpy.types.PropertyGroup):
     display_name: bpy.props.StringProperty()
     repo_id: bpy.props.StringProperty()
     filename: bpy.props.StringProperty()
@@ -360,7 +360,7 @@ def _variant_enum_items(self, context):
     return _variant_enum_cache
 
 
-class QwenAssistantSettings(bpy.types.PropertyGroup):
+class LLMAssistantSettings(bpy.types.PropertyGroup):
     vram_budget_gb: bpy.props.IntProperty(
         name="VRAM allouee (Go)",
         description="Quantite de VRAM que tu acceptes de dedier au modele",
@@ -385,14 +385,14 @@ class QwenAssistantSettings(bpy.types.PropertyGroup):
     # --- Recommandation automatique (toutes familles, selon VRAM) ---
     scanning: bpy.props.BoolProperty(default=False)
     scan_status: bpy.props.StringProperty(default="")
-    recommended_models: bpy.props.CollectionProperty(type=QwenModelItem)
+    recommended_models: bpy.props.CollectionProperty(type=LLMModelItem)
 
     # --- Navigation manuelle par famille / modele ---
     browse_family: bpy.props.EnumProperty(name="Famille", items=_family_enum_items)
     browse_variant: bpy.props.EnumProperty(name="Modele", items=_variant_enum_items)
     browse_scanning: bpy.props.BoolProperty(default=False)
     browse_status: bpy.props.StringProperty(default="")
-    browse_results: bpy.props.CollectionProperty(type=QwenModelItem)
+    browse_results: bpy.props.CollectionProperty(type=LLMModelItem)
 
     download_status: bpy.props.StringProperty(default="")
     downloading: bpy.props.BoolProperty(default=False)
@@ -400,7 +400,7 @@ class QwenAssistantSettings(bpy.types.PropertyGroup):
     active_ollama_model: bpy.props.StringProperty(
         name="Modele actif (Ollama)",
         description="Nom du modele tel qu'enregistre dans Ollama (ollama list)",
-        default="qwen3:8b",
+        default="llama3.2:3b",
     )
     chat_input: bpy.props.StringProperty(name="Message")
     chat_history: bpy.props.StringProperty(default="")
@@ -438,7 +438,7 @@ def _poll_scan_result():
         _scan_result_buffer.update(done=False, models=[], error=None)
 
     for scene in bpy.data.scenes:
-        settings = scene.qwen_assistant
+        settings = scene.llm_assistant
         settings.scanning = False
         settings.recommended_models.clear()
         if error:
@@ -461,14 +461,14 @@ def _poll_scan_result():
     return None
 
 
-class QWEN_OT_scan_models(bpy.types.Operator):
+class LLM_OT_scan_models(bpy.types.Operator):
     """Cherche, dans TOUT le catalogue, les modeles qui tiennent dans le
     budget VRAM choisi"""
-    bl_idname = "qwen.scan_models"
+    bl_idname = "llm.scan_models"
     bl_label = "Scanner les modeles disponibles"
 
     def execute(self, context):
-        settings = context.scene.qwen_assistant
+        settings = context.scene.llm_assistant
         if not _hf_available():
             self.report(
                 {'INFO'},
@@ -523,7 +523,7 @@ def _poll_browse_result():
         _browse_buffer.update(done=False, options=[], error=None)
 
     for scene in bpy.data.scenes:
-        settings = scene.qwen_assistant
+        settings = scene.llm_assistant
         settings.browse_scanning = False
         settings.browse_results.clear()
         if error:
@@ -544,14 +544,14 @@ def _poll_browse_result():
     return None
 
 
-class QWEN_OT_browse_scan(bpy.types.Operator):
+class LLM_OT_browse_scan(bpy.types.Operator):
     """Recupere les tailles de fichiers disponibles pour le modele choisi
     dans les menus Famille / Modele ci-dessus"""
-    bl_idname = "qwen.browse_scan"
+    bl_idname = "llm.browse_scan"
     bl_label = "Voir les tailles disponibles"
 
     def execute(self, context):
-        settings = context.scene.qwen_assistant
+        settings = context.scene.llm_assistant
         family = FAMILIES.get(settings.browse_family)
         if not family:
             self.report({'ERROR'}, "Choisis une famille")
@@ -622,7 +622,7 @@ def _poll_download_result():
         _download_buffer.update(done=False, path=None, error=None, index=-1)
 
     for scene in bpy.data.scenes:
-        settings = scene.qwen_assistant
+        settings = scene.llm_assistant
         settings.downloading = False
         coll = getattr(settings, collection, None)
         if coll is None:
@@ -638,16 +638,16 @@ def _poll_download_result():
     return None
 
 
-class QWEN_OT_download_model(bpy.types.Operator):
+class LLM_OT_download_model(bpy.types.Operator):
     """Telecharge le fichier GGUF selectionne depuis Hugging Face"""
-    bl_idname = "qwen.download_model"
+    bl_idname = "llm.download_model"
     bl_label = "Telecharger"
 
     index: bpy.props.IntProperty()
     collection: bpy.props.StringProperty(default="recommended_models")
 
     def execute(self, context):
-        settings = context.scene.qwen_assistant
+        settings = context.scene.llm_assistant
         coll = getattr(settings, self.collection, None)
         if coll is None or self.index < 0 or self.index >= len(coll):
             self.report({'ERROR'}, "Selection invalide")
@@ -674,16 +674,16 @@ class QWEN_OT_download_model(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class QWEN_OT_register_ollama(bpy.types.Operator):
+class LLM_OT_register_ollama(bpy.types.Operator):
     """Enregistre le .gguf telecharge comme modele Ollama utilisable"""
-    bl_idname = "qwen.register_ollama"
+    bl_idname = "llm.register_ollama"
     bl_label = "Enregistrer dans Ollama"
 
     index: bpy.props.IntProperty()
     collection: bpy.props.StringProperty(default="recommended_models")
 
     def execute(self, context):
-        settings = context.scene.qwen_assistant
+        settings = context.scene.llm_assistant
         coll = getattr(settings, self.collection, None)
         if coll is None or self.index < 0 or self.index >= len(coll):
             self.report({'ERROR'}, "Selection invalide")
@@ -768,7 +768,7 @@ def _poll_chat_result():
         _chat_buffer.update(done=False, reply=None, error=None)
 
     for scene in bpy.data.scenes:
-        settings = scene.qwen_assistant
+        settings = scene.llm_assistant
         settings.chat_busy = False
         if error:
             settings.chat_history += f"\n[Erreur] {error}\n"
@@ -779,13 +779,13 @@ def _poll_chat_result():
     return None
 
 
-class QWEN_OT_send_chat(bpy.types.Operator):
+class LLM_OT_send_chat(bpy.types.Operator):
     """Envoie le message au modele local via Ollama"""
-    bl_idname = "qwen.send_chat"
+    bl_idname = "llm.send_chat"
     bl_label = "Envoyer"
 
     def execute(self, context):
-        settings = context.scene.qwen_assistant
+        settings = context.scene.llm_assistant
         if not settings.chat_input.strip():
             return {'CANCELLED'}
 
@@ -804,16 +804,16 @@ class QWEN_OT_send_chat(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class QWEN_OT_execute_code(bpy.types.Operator):
+class LLM_OT_execute_code(bpy.types.Operator):
     """Execute le dernier bloc de code Python propose par l'assistant.
     A n'utiliser qu'en mode controle agentique et apres relecture du code :
     ce code s'execute avec les memes droits que Blender lui-meme."""
-    bl_idname = "qwen.execute_code"
+    bl_idname = "llm.execute_code"
     bl_label = "Executer le code propose"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        settings = context.scene.qwen_assistant
+        settings = context.scene.llm_assistant
         code = settings.last_code_block
         if not code:
             self.report({'WARNING'}, "Aucun code a executer")
@@ -840,23 +840,23 @@ def _draw_model_list(box, settings, collection_name):
             label += " [estimation]"
         row.label(text=label)
         if item.downloaded:
-            op = row.operator(QWEN_OT_register_ollama.bl_idname, text="", icon='CHECKMARK')
+            op = row.operator(LLM_OT_register_ollama.bl_idname, text="", icon='CHECKMARK')
         else:
-            op = row.operator(QWEN_OT_download_model.bl_idname, text="", icon='IMPORT')
+            op = row.operator(LLM_OT_download_model.bl_idname, text="", icon='IMPORT')
         op.index = i
         op.collection = collection_name
 
 
-class QWEN_PT_panel(bpy.types.Panel):
+class LLM_PT_panel(bpy.types.Panel):
     bl_label = "Local LLM"
-    bl_idname = "QWEN_PT_panel"
+    bl_idname = "LLM_PT_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "Local LLM"
 
     def draw(self, context):
         layout = self.layout
-        settings = context.scene.qwen_assistant
+        settings = context.scene.llm_assistant
 
         # --- Choix du mode ---
         box = layout.box()
@@ -872,12 +872,12 @@ class QWEN_PT_panel(bpy.types.Panel):
         box.prop(settings, "models_dir")
 
         if not _hf_available():
-            box.operator(QWEN_OT_install_deps.bl_idname, icon='IMPORT')
+            box.operator(LLM_OT_install_deps.bl_idname, icon='IMPORT')
 
         row = box.row()
         row.enabled = not settings.scanning
         row.operator(
-            QWEN_OT_scan_models.bl_idname,
+            LLM_OT_scan_models.bl_idname,
             text="Scan en cours..." if settings.scanning else "Scanner tout le catalogue",
             icon='VIEWZOOM',
         )
@@ -902,7 +902,7 @@ class QWEN_PT_panel(bpy.types.Panel):
             row = box.row()
             row.enabled = not settings.browse_scanning
             row.operator(
-                QWEN_OT_browse_scan.bl_idname,
+                LLM_OT_browse_scan.bl_idname,
                 text="Recherche en cours..." if settings.browse_scanning else "Voir les tailles disponibles",
             )
             if settings.browse_status:
@@ -925,14 +925,14 @@ class QWEN_PT_panel(bpy.types.Panel):
         row.prop(settings, "chat_input", text="")
         sub = row.row()
         sub.enabled = not settings.chat_busy
-        sub.operator(QWEN_OT_send_chat.bl_idname, text="Envoyer" if not settings.chat_busy else "...")
+        sub.operator(LLM_OT_send_chat.bl_idname, text="Envoyer" if not settings.chat_busy else "...")
 
         if settings.mode_agentic and settings.last_code_block:
             code_box = box.box()
             code_box.label(text="Code propose :", icon='SCRIPT')
             for line in settings.last_code_block.split("\n")[:10]:
                 code_box.label(text=line)
-            code_box.operator(QWEN_OT_execute_code.bl_idname, icon='PLAY')
+            code_box.operator(LLM_OT_execute_code.bl_idname, icon='PLAY')
 
 
 # ---------------------------------------------------------------------------
@@ -940,27 +940,27 @@ class QWEN_PT_panel(bpy.types.Panel):
 # ---------------------------------------------------------------------------
 
 classes = (
-    QwenModelItem,
-    QwenAssistantSettings,
-    QWEN_OT_install_deps,
-    QWEN_OT_scan_models,
-    QWEN_OT_browse_scan,
-    QWEN_OT_download_model,
-    QWEN_OT_register_ollama,
-    QWEN_OT_send_chat,
-    QWEN_OT_execute_code,
-    QWEN_PT_panel,
+    LLMModelItem,
+    LLMAssistantSettings,
+    LLM_OT_install_deps,
+    LLM_OT_scan_models,
+    LLM_OT_browse_scan,
+    LLM_OT_download_model,
+    LLM_OT_register_ollama,
+    LLM_OT_send_chat,
+    LLM_OT_execute_code,
+    LLM_PT_panel,
 )
 
 
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.Scene.qwen_assistant = bpy.props.PointerProperty(type=QwenAssistantSettings)
+    bpy.types.Scene.llm_assistant = bpy.props.PointerProperty(type=LLMAssistantSettings)
 
 
 def unregister():
-    del bpy.types.Scene.qwen_assistant
+    del bpy.types.Scene.llm_assistant
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 

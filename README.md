@@ -1,8 +1,11 @@
-# Qwen Local Assistant — Installation Guide
+# llm_blender_addon — Installation Guide
 
-A Blender addon that adds a chat panel backed by a Qwen model running
+A Blender addon that adds a chat panel backed by a local LLM running
 **fully locally** (via Ollama), with automatic model recommendation based
-on your available VRAM and one-click download from Hugging Face.
+on your available VRAM and one-click download from Hugging Face. Qwen is
+one supported model family; the addon also supports other LLMs published
+on Hugging Face, including Llama, Gemma, Phi, Mistral, SmolLM, TinyLlama,
+GLM, DeepSeek, and Kimi models available as compatible GGUF files.
 
 This guide assumes nothing is installed yet.
 
@@ -13,7 +16,7 @@ This guide assumes nothing is installed yet.
 | Tool | Why | Link |
 |---|---|---|
 | Blender 4.1 or newer | Runs the addon | [blender.org](https://www.blender.org/download/) |
-| Ollama | Serves the Qwen model locally on `localhost:11434` | [ollama.com](https://ollama.com/download) |
+| Ollama | Serves the selected LLM locally on `localhost:11434` | [ollama.com](https://ollama.com/download) |
 | Python `huggingface_hub` | Optional: enables resumable/robust downloads | installable from inside the addon (step 4) |
 
 A GPU isn't strictly required (Ollama can run on CPU), but without one,
@@ -53,19 +56,19 @@ If a version number prints, you're good. You can also open
 
 ## 3. Install the addon in Blender
 
-1. Grab the `qwen_blender_assistant.py` file.
+1. Grab the `llm_blender_addon.py` file.
 2. In Blender: **Edit > Preferences > Add-ons**.
 3. Click the small dropdown arrow in the top-right corner of the window
    (next to the add-ons list) → **Install from Disk...**
    *(on recent Blender versions, "Install from Disk" handles both
    `.zip` extension packages and legacy single-file `.py` add-ons — this
    is the second case here.)*
-4. Select `qwen_blender_assistant.py` and confirm.
-5. Tick the checkbox next to **"Qwen Local Assistant"** in the list to
+4. Select `llm_blender_addon.py` and confirm.
+5. Tick the checkbox next to **"Local LLM Assistant"** in the list to
    enable it.
 
 The panel shows up in the **3D Viewport**: press **N** to open the
-sidebar, then the **"Qwen AI"** tab.
+sidebar, then the **"Local LLM"** tab.
 
 ---
 
@@ -76,7 +79,7 @@ Face API directly for real file sizes and filenames. What
 `huggingface_hub` adds is a more robust, resumable download (useful on
 flaky connections or for very large files).
 
-In the **Qwen AI** panel, if `huggingface_hub` isn't detected, an
+In the **Local LLM** panel, if `huggingface_hub` isn't detected, an
 **"Install huggingface_hub"** button appears above the scan button —
 click it to install it directly into Blender's Python.
 
@@ -105,16 +108,17 @@ Restart Blender afterwards.
 
 ## 5. First run: pick and fetch a model
 
-1. Open the **Qwen AI** panel (N-sidebar, 3D Viewport).
+1. Open the **Local LLM** panel (N-sidebar, 3D Viewport).
 2. Set the **VRAM budget** slider to how much you're willing to dedicate
    to the model (e.g. 8 for an 8-12 GB card, leaving headroom for
    Blender itself).
 3. Click **"Scan for available models"**. The addon queries Hugging Face
-   and lists the Qwen models that fit that budget, from the
-   largest/highest-quality down to the most compact.
+   and lists compatible Hugging Face models that fit that budget, from the
+   largest/highest-quality down to the most compact. Qwen is only one of
+   the available model families.
 4. Next to the model you want, click the **download** icon (arrow). The
    `.gguf` file is saved into the folder set in **"Models folder"**
-   (defaults to `~/qwen_blender_models`). This can take a few minutes
+   (defaults to `~/llm_blender_models`). This can take a few minutes
    depending on size and connection speed — Blender's UI stays usable
    meanwhile.
 5. Once downloaded, click the **✓** icon that replaces it to
@@ -124,9 +128,8 @@ Restart Blender afterwards.
    model's name — that's what the chat will use.
 
 *Note: you can also skip the scan/download flow entirely and use the
-regular `ollama pull qwen3:8b` command line, then just type the model
-name into that field — the buttons are a convenience, not a
-requirement.*
+regular `ollama pull` command line, then type the model name into that
+field — the buttons are a convenience, not a requirement.
 
 ---
 
@@ -161,8 +164,8 @@ tray icon on Windows). If you changed the default port, update
 
 **Scan finds no models**
 Your VRAM budget may be too low for the catalog's models — try raising
-the slider. Below ~1.5-2 GB, even the smallest Qwen3 (0.6B) may not fit
-once the context-overhead margin is subtracted.
+the slider. Below ~1.5-2 GB, even the smallest available models may not
+fit once the context-overhead margin is subtracted.
 
 **Download fails with a 404 error**
 This was a bug in early versions of this addon: without
@@ -194,7 +197,7 @@ approximate.
 
 ## 8. Uninstalling
 
-**Edit > Preferences > Add-ons**, find "Qwen Local Assistant", expand it
+**Edit > Preferences > Add-ons**, find "Local LLM Assistant", expand it
 and click **Remove**. Downloaded `.gguf` files and models registered in
 Ollama are not deleted automatically — remove them manually from the
 models folder and via `ollama rm <name>` if needed.
