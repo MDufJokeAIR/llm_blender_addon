@@ -152,11 +152,28 @@ any of them the same way as above.
 **3D-generation models (TRELLIS.2, TRELLIS, Hunyuan3D-2, TripoSR,
 InstantMesh, Shap-E)**: these are image/text-to-mesh generators, not
 chat LLMs — they don't run through Ollama and this addon can't execute
-them. They're included in the catalog (and searchable) purely for
-reference: instead of a download/register icon, their row shows a link
-icon that opens the model's Hugging Face page directly, where you'll
-find the actual runtime instructions (typically a `diffusers` or
-`ComfyUI` setup, separate from this addon).
+them, so their row shows two icons instead of the usual download/register
+ones:
+
+- **Link icon** — opens the model's Hugging Face page.
+- **Install icon** — best-effort automated setup: clones the model's
+  GitHub repo, creates a dedicated Python virtual environment (kept
+  separate from Blender's own Python, under
+  `<models folder>/gen3d_envs/<model name>/`), installs its `pip`
+  dependencies, and downloads its weights from Hugging Face. This turns
+  to a checkmark once done.
+
+  This is **not** the same guarantee as the Ollama flow: these models
+  don't share a universal runtime, and some of them need extra manual
+  steps beyond plain `pip install` (a CUDA compiler, platform-specific
+  precompiled wheels...) — read the model's tooltip description before
+  installing, it flags the ones known to need more. If a step fails, the
+  status message shows the real error output from the command that
+  failed rather than a generic message, so you can act on it directly.
+  Even after a successful install, actually *generating* a mesh isn't
+  wired into this addon yet — you'd run the cloned repo's own script
+  from its virtual environment (see that repo's own README, now sitting
+  in `<env folder>/repo/`).
 
 ---
 

@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Local LLM Assistant",
     "author": "Joke",
-    "version": (0, 4, 0),
+    "version": (0, 5, 0),
     "blender": (4, 1, 0),
     "location": "View3D > Sidebar (N) > Local LLM",
     "description": (
@@ -11,7 +11,8 @@ bl_info = {
         "famille, telechargement depuis Hugging Face, mode assistant simple "
         "ou controle agentique de la scene. Catalogue aussi une famille "
         "Generation 3D (TRELLIS.2, TRELLIS, Hunyuan3D-2, TripoSR, "
-        "InstantMesh, Shap-E) a titre de reference, hors du flux Ollama."
+        "InstantMesh, Shap-E), hors du flux Ollama, avec installation "
+        "best-effort de leur environnement (clone + venv + pip + poids)."
     ),
     "category": "3D View",
 }
@@ -194,17 +195,23 @@ FAMILIES = {
         "chat_compatible": False,
         "models": [
             {"name": "TRELLIS.2-4B", "repo_id": "microsoft/TRELLIS.2-4B", "params_b": 4.0, "non_gguf": True,
-             "desc": "Microsoft, MIT. Generation image-vers-3D haute fidelite (topologie arbitraire, materiaux PBR, jusqu'a 1536^3), sortie mesh texture. Tres efficace pour de la conception 3D mais gourmand (~24 Go de VRAM recommandes) et teste surtout sous Linux."},
+             "github_repo": "https://github.com/microsoft/TRELLIS.2.git",
+             "desc": "Microsoft, MIT. Generation image-vers-3D haute fidelite (topologie arbitraire, materiaux PBR, jusqu'a 1536^3), sortie mesh texture. Tres efficace pour de la conception 3D mais gourmand (~24 Go de VRAM recommandes) et teste surtout sous Linux. Installation avancee : le depot fournit des wheels precompiles specifiques a la version de Torch/CUDA (extensions o_voxel, cumesh...), l'installation automatique de ce panneau peut echouer a cette etape - voir le depot GitHub si besoin."},
             {"name": "TRELLIS (image-large)", "repo_id": "microsoft/TRELLIS-image-large", "params_b": 1.2, "non_gguf": True,
+             "github_repo": "https://github.com/microsoft/TRELLIS.git",
              "desc": "Microsoft, MIT. Version precedente de TRELLIS, plus legere que TRELLIS.2, toujours une reference solide pour l'image-vers-3D."},
             {"name": "Hunyuan3D-2", "repo_id": "tencent/Hunyuan3D-2", "params_b": 0.0, "non_gguf": True,
-             "desc": "Tencent. Genere des meshes textures haute resolution a partir d'image ou de texte, tres reputee en conception d'assets 3D ; pipeline Diffusers/Safetensors, licence communautaire Tencent-Hunyuan."},
+             "github_repo": "https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git",
+             "desc": "Tencent. Genere des meshes textures haute resolution a partir d'image ou de texte, tres reputee en conception d'assets 3D ; version mini accessible des ~5-6 Go de VRAM pour la forme seule. Pipeline Diffusers/Safetensors, licence communautaire Tencent-Hunyuan. La generation de texture (etape 'Paint') demande la compilation d'un rasterizer custom, non geree par l'installation automatique de ce panneau."},
             {"name": "TripoSR", "repo_id": "stabilityai/TripoSR", "params_b": 0.0, "non_gguf": True,
-             "desc": "Stability AI. Reconstruction 3D a partir d'une seule image, tres rapide et legere : bon point d'entree si le materiel est modeste."},
+             "github_repo": "https://github.com/VAST-AI-Research/TripoSR.git",
+             "desc": "Stability AI. Reconstruction 3D a partir d'une seule image, tres rapide et legere (~6 Go de VRAM) : bon point d'entree si le materiel est modeste. Depend de torchmcubes, qui doit correspondre a la version CUDA locale de Torch (peut necessiter des outils de compilation C++ sous Windows)."},
             {"name": "InstantMesh", "repo_id": "TencentARC/InstantMesh", "params_b": 0.0, "non_gguf": True,
+             "github_repo": "https://github.com/TencentARC/InstantMesh.git",
              "desc": "Tencent ARC, Apache 2.0. Genere un mesh 3D a partir d'une image en environ 10 secondes (diffusion multi-vue + reconstruction LRM)."},
             {"name": "Shap-E", "repo_id": "openai/shap-e", "params_b": 0.0, "non_gguf": True,
-             "desc": "OpenAI, MIT. Plus ancien et beaucoup plus leger que les modeles ci-dessus (texte/image -> objet 3D), qualite modeste mais utile sur config tres limitee."},
+             "github_repo": "https://github.com/openai/shap-e.git",
+             "desc": "OpenAI, MIT. Plus ancien et beaucoup plus leger que les modeles ci-dessus (texte/image -> objet 3D), qualite modeste mais utile sur config tres limitee. Le depot le plus simple a installer automatiquement de cette famille (pas de compilation custom connue)."},
         ],
     },
 }
@@ -405,6 +412,9 @@ class LLMModelItem(bpy.types.PropertyGroup):
         default=True,
         description="Faux pour un modele de generation 3D (non pilotable via Ollama)",
     )
+    github_repo: bpy.props.StringProperty()
+    env_installed: bpy.props.BoolProperty(default=False)
+    env_path: bpy.props.StringProperty()
 
 
 # Caches module-level pour les items d'EnumProperty dynamiques : Blender
@@ -478,6 +488,10 @@ class LLMAssistantSettings(bpy.types.PropertyGroup):
     searching: bpy.props.BoolProperty(default=False)
     search_status: bpy.props.StringProperty(default="")
     search_results: bpy.props.CollectionProperty(type=LLMModelItem)
+
+    # --- Installation d'environnement pour un modele de generation 3D ---
+    gen3d_installing: bpy.props.BoolProperty(default=False)
+    gen3d_install_status: bpy.props.StringProperty(default="")
 
     download_status: bpy.props.StringProperty(default="")
     downloading: bpy.props.BoolProperty(default=False)
@@ -663,6 +677,7 @@ class LLM_OT_browse_scan(bpy.types.Operator):
             item.repo_id = entry["repo_id"]
             item.desc = entry.get("desc", "")
             item.is_llm = False
+            item.github_repo = entry.get("github_repo", "")
             settings.browse_status = (
                 "Pas un modele de chat GGUF compatible Ollama : ce panneau ne "
                 "sait pas l'executer. Ouvre sa page Hugging Face (icone lien) "
@@ -709,6 +724,7 @@ def _search_worker(query):
                     "name": entry["name"], "family": family_key,
                     "repo_id": entry["repo_id"], "filename": "", "quant": "",
                     "size_gb": 0.0, "online": False, "is_llm": False,
+                    "github_repo": entry.get("github_repo", ""),
                     "desc": entry.get("desc", ""),
                 })
                 continue
@@ -763,6 +779,7 @@ def _poll_search_result():
             item.size_gb = r["size_gb"]
             item.online = r["online"]
             item.is_llm = r["is_llm"]
+            item.github_repo = r.get("github_repo", "")
             item.desc = r.get("desc", "")
         settings.search_status = (
             f"{len(results)} resultat(s)" if results
@@ -793,6 +810,154 @@ class LLM_OT_search_catalog(bpy.types.Operator):
         )
         thread.start()
         bpy.app.timers.register(_poll_search_result, first_interval=0.3)
+        return {'FINISHED'}
+
+
+# ---------------------------------------------------------------------------
+# Installation d'environnement pour un modele de generation 3D (non-LLM).
+#
+# Contrairement aux modeles GGUF/Ollama, ces modeles n'ont pas de runtime
+# universel : chacun a son propre depot GitHub, son propre requirements.txt,
+# et parfois des extensions CUDA a compiler (specifiques a la version locale
+# de Torch/CUDA, ou a des wheels precompiles). Ce qui suit automatise la
+# partie mecanique et fiable (cloner le depot, creer un venv dedie, installer
+# les dependances pip, telecharger les poids) ; ca ne peut pas garantir que
+# l'installation ira jusqu'au bout pour tous les modeles (voir la description
+# de chacun) - en cas d'echec, le message affiche la sortie reelle de la
+# commande qui a echoue plutot que de la masquer.
+# ---------------------------------------------------------------------------
+
+def _run_checked(cmd, cwd=None, timeout=1800):
+    """Lance une commande, leve une RuntimeError avec la fin de sa sortie
+    reelle (stdout/stderr) en cas d'echec, plutot qu'un message generique."""
+    result = subprocess.run(
+        cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout,
+    )
+    if result.returncode != 0:
+        tail = (result.stderr or result.stdout or "").strip()
+        tail = tail[-800:] if tail else "(pas de sortie)"
+        raise RuntimeError(f"'{' '.join(cmd)}' a echoue :\n{tail}")
+
+
+def _gen3d_venv_python(venv_dir):
+    if os.name == "nt":
+        return os.path.join(venv_dir, "Scripts", "python.exe")
+    return os.path.join(venv_dir, "bin", "python")
+
+
+_gen3d_install_lock = threading.Lock()
+_gen3d_install_buffer = {
+    "done": False, "error": None, "path": None, "index": -1,
+    "collection": "search_results",
+}
+
+
+def _gen3d_install_worker(github_repo, hf_repo_id, target_dir, index, collection):
+    try:
+        os.makedirs(target_dir, exist_ok=True)
+        repo_dir = os.path.join(target_dir, "repo")
+        venv_dir = os.path.join(target_dir, "venv")
+        weights_dir = os.path.join(target_dir, "weights")
+
+        if not os.path.isdir(os.path.join(repo_dir, ".git")):
+            _run_checked(["git", "clone", "--depth", "1", github_repo, repo_dir])
+
+        if not os.path.isfile(_gen3d_venv_python(venv_dir)):
+            _run_checked([sys.executable, "-m", "venv", venv_dir])
+        venv_python = _gen3d_venv_python(venv_dir)
+
+        _run_checked([venv_python, "-m", "pip", "install", "--upgrade", "pip"])
+
+        requirements = os.path.join(repo_dir, "requirements.txt")
+        if os.path.isfile(requirements):
+            _run_checked([venv_python, "-m", "pip", "install", "-r", requirements])
+        elif os.path.isfile(os.path.join(repo_dir, "pyproject.toml")) or os.path.isfile(
+            os.path.join(repo_dir, "setup.py")
+        ):
+            _run_checked([venv_python, "-m", "pip", "install", "-e", repo_dir])
+
+        _run_checked([venv_python, "-m", "pip", "install", "--upgrade", "huggingface_hub"])
+        _run_checked([
+            venv_python, "-c",
+            "from huggingface_hub import snapshot_download\n"
+            f"snapshot_download(repo_id={hf_repo_id!r}, local_dir={weights_dir!r})",
+        ], timeout=7200)
+
+        with _gen3d_install_lock:
+            _gen3d_install_buffer.update(done=True, error=None, path=target_dir, index=index, collection=collection)
+    except Exception as exc:
+        with _gen3d_install_lock:
+            _gen3d_install_buffer.update(done=True, error=str(exc), path=None, index=index, collection=collection)
+
+
+def _poll_gen3d_install_result():
+    with _gen3d_install_lock:
+        done = _gen3d_install_buffer["done"]
+    if not done:
+        return 0.5
+
+    with _gen3d_install_lock:
+        error = _gen3d_install_buffer["error"]
+        path = _gen3d_install_buffer["path"]
+        index = _gen3d_install_buffer["index"]
+        collection = _gen3d_install_buffer["collection"]
+        _gen3d_install_buffer.update(done=False, error=None, path=None, index=-1)
+
+    for scene in bpy.data.scenes:
+        settings = scene.llm_assistant
+        settings.gen3d_installing = False
+        if error:
+            settings.gen3d_install_status = f"Echec : {error}"
+            continue
+        settings.gen3d_install_status = f"Environnement pret : {path}"
+        coll = getattr(settings, collection, None)
+        if coll is not None and 0 <= index < len(coll):
+            coll[index].env_installed = True
+            coll[index].env_path = path
+    return None
+
+
+class LLM_OT_install_gen3d_env(bpy.types.Operator):
+    """Clone le depot GitHub du modele, cree un environnement virtuel Python
+    dedie, installe ses dependances pip et telecharge ses poids depuis
+    Hugging Face. Best-effort : certains modeles ont des etapes
+    supplementaires (extensions CUDA a compiler, wheels precompiles) que ce
+    bouton ne peut pas couvrir - lis la description du modele avant de
+    lancer, et en cas d'echec le message affiche la vraie sortie d'erreur"""
+    bl_idname = "llm.install_gen3d_env"
+    bl_label = "Installer l'environnement"
+
+    index: bpy.props.IntProperty()
+    collection: bpy.props.StringProperty(default="search_results")
+
+    def execute(self, context):
+        settings = context.scene.llm_assistant
+        coll = getattr(settings, self.collection, None)
+        if coll is None or self.index < 0 or self.index >= len(coll):
+            self.report({'ERROR'}, "Selection invalide")
+            return {'CANCELLED'}
+
+        item = coll[self.index]
+        if not item.github_repo:
+            self.report({'ERROR'}, "Pas de depot GitHub connu pour ce modele")
+            return {'CANCELLED'}
+
+        safe_name = re.sub(r"[^a-zA-Z0-9._-]+", "-", item.display_name).strip("-")
+        target_dir = os.path.join(settings.models_dir, "gen3d_envs", safe_name)
+
+        settings.gen3d_installing = True
+        settings.gen3d_install_status = (
+            f"Installation de {item.display_name} en cours "
+            f"(clone + venv + pip + poids - peut prendre longtemps)..."
+        )
+
+        thread = threading.Thread(
+            target=_gen3d_install_worker,
+            args=(item.github_repo, item.repo_id, target_dir, self.index, self.collection),
+            daemon=True,
+        )
+        thread.start()
+        bpy.app.timers.register(_poll_gen3d_install_result, first_interval=0.5)
         return {'FINISHED'}
 
 
@@ -1086,10 +1251,18 @@ def _draw_model_list(box, settings, collection_name):
         info_op.info_text = item.desc or "Pas de description disponible pour ce modele."
 
         if not item.is_llm:
-            # Modele de generation 3D : pas de flux telechargement/Ollama,
-            # juste un lien direct vers sa page Hugging Face.
+            # Modele de generation 3D : pas de flux telechargement/Ollama.
             url_op = row.operator("wm.url_open", text="", icon='URL')
             url_op.url = f"https://huggingface.co/{item.repo_id}"
+            if item.github_repo:
+                sub = row.row(align=True)
+                sub.enabled = not settings.gen3d_installing
+                install_op = sub.operator(
+                    LLM_OT_install_gen3d_env.bl_idname, text="",
+                    icon='CHECKMARK' if item.env_installed else 'IMPORT',
+                )
+                install_op.index = i
+                install_op.collection = collection_name
         elif item.downloaded:
             op = row.operator(LLM_OT_register_ollama.bl_idname, text="", icon='CHECKMARK')
             op.index = i
@@ -1182,6 +1355,10 @@ class LLM_PT_panel(bpy.types.Panel):
             for line in textwrap.wrap(settings.download_status, 42):
                 layout.label(text=line)
 
+        if settings.gen3d_install_status:
+            for line in textwrap.wrap(settings.gen3d_install_status, 42):
+                layout.label(text=line)
+
         # --- Chat ---
         box = layout.box()
         box.label(text="Chat", icon='OUTLINER_OB_LIGHT')
@@ -1214,6 +1391,7 @@ classes = (
     LLM_OT_scan_models,
     LLM_OT_browse_scan,
     LLM_OT_search_catalog,
+    LLM_OT_install_gen3d_env,
     LLM_OT_download_model,
     LLM_OT_register_ollama,
     LLM_OT_model_info,
