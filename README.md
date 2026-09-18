@@ -115,7 +115,9 @@ Restart Blender afterwards.
 3. Click **"Scan for available models"**. The addon queries Hugging Face
    and lists compatible Hugging Face models that fit that budget, from the
    largest/highest-quality down to the most compact. Qwen is only one of
-   the available model families.
+   the available model families. Hover over any model's name (the ⓘ icon)
+   to see a short description of what it is and what it's good for before
+   downloading anything.
 4. Next to the model you want, click the **download** icon (arrow). The
    `.gguf` file is saved into the folder set in **"Models folder"**
    (defaults to `~/llm_blender_models`). This can take a few minutes
@@ -130,6 +132,31 @@ Restart Blender afterwards.
 *Note: you can also skip the scan/download flow entirely and use the
 regular `ollama pull` command line, then type the model name into that
 field — the buttons are a convenience, not a requirement.
+
+**Searching the catalog**: the **"Search a model"** box (below the VRAM
+recommendation list) filters the *entire* catalog — every family, plus
+the 3D-generation entries described below — by name, family or keyword
+(e.g. `coder`, `trellis`, `gemma`). It ignores the VRAM slider entirely,
+since it's a search by name, not a budget-based recommendation: useful to
+jump straight to a specific model you already have in mind.
+
+**Browsing manually by family**: instead of the automatic scan, the
+**"Browse by family"** box lets you pick a family from a dropdown (Qwen,
+Llama, Gemma, Phi, Mistral, SmolLM, TinyLlama, GLM, DeepSeek, Kimi,
+Generation 3D...), then a specific model from a second dropdown — each
+entry's tooltip already shows a short description. Click **"Check
+available sizes"** to list every quantization Hugging Face has for that
+specific model, regardless of your VRAM slider, then download/register
+any of them the same way as above.
+
+**3D-generation models (TRELLIS.2, TRELLIS, Hunyuan3D-2, TripoSR,
+InstantMesh, Shap-E)**: these are image/text-to-mesh generators, not
+chat LLMs — they don't run through Ollama and this addon can't execute
+them. They're included in the catalog (and searchable) purely for
+reference: instead of a download/register icon, their row shows a link
+icon that opens the model's Hugging Face page directly, where you'll
+find the actual runtime instructions (typically a `diffusers` or
+`ComfyUI` setup, separate from this addon).
 
 ---
 

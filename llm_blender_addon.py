@@ -1,15 +1,17 @@
 bl_info = {
     "name": "Local LLM Assistant",
     "author": "Joke",
-    "version": (0, 2, 0),
+    "version": (0, 4, 0),
     "blender": (4, 1, 0),
     "location": "View3D > Sidebar (N) > Local LLM",
     "description": (
         "Assistant IA local (Qwen, Llama, Gemma, Phi, Mistral, SmolLM, "
         "TinyLlama, GLM, DeepSeek, Kimi...) via Ollama : recommandation de "
-        "modele selon la VRAM disponible, navigation par famille, "
-        "telechargement depuis Hugging Face, mode assistant simple ou "
-        "controle agentique de la scene."
+        "modele selon la VRAM disponible, recherche libre, navigation par "
+        "famille, telechargement depuis Hugging Face, mode assistant simple "
+        "ou controle agentique de la scene. Catalogue aussi une famille "
+        "Generation 3D (TRELLIS.2, TRELLIS, Hunyuan3D-2, TripoSR, "
+        "InstantMesh, Shap-E) a titre de reference, hors du flux Ollama."
     ),
     "category": "3D View",
 }
@@ -58,87 +60,151 @@ DEFAULT_MODELS_DIR = os.path.join(
 FAMILIES = {
     "qwen": {
         "label": "Qwen (Alibaba)",
+        "note": "Gamme la plus complete du catalogue (0.6B a 32B, MoE, variantes Coder), licence Apache 2.0.",
         "models": [
-            {"name": "Qwen3 0.6B",           "repo_id": "Qwen/Qwen3-0.6B-GGUF",                       "params_b": 0.6},
-            {"name": "Qwen3 1.7B",           "repo_id": "Qwen/Qwen3-1.7B-GGUF",                       "params_b": 1.7},
-            {"name": "Qwen3 4B",             "repo_id": "Qwen/Qwen3-4B-GGUF",                         "params_b": 4.0},
-            {"name": "Qwen3 8B",             "repo_id": "Qwen/Qwen3-8B-GGUF",                         "params_b": 8.0},
-            {"name": "Qwen3 14B",            "repo_id": "Qwen/Qwen3-14B-GGUF",                        "params_b": 14.0},
-            {"name": "Qwen3 32B",            "repo_id": "Qwen/Qwen3-32B-GGUF",                        "params_b": 32.0},
-            {"name": "Qwen3 30B-A3B (MoE)",  "repo_id": "Qwen/Qwen3-30B-A3B-GGUF",                    "params_b": 30.0},
-            {"name": "Qwen2.5 Coder 7B",     "repo_id": "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",        "params_b": 7.0,  "coder": True},
-            {"name": "Qwen2.5 Coder 14B",    "repo_id": "Qwen/Qwen2.5-Coder-14B-Instruct-GGUF",       "params_b": 14.0, "coder": True},
-            {"name": "Qwen2.5 Coder 32B",    "repo_id": "Qwen/Qwen2.5-Coder-32B-Instruct-GGUF",       "params_b": 32.0, "coder": True},
+            {"name": "Qwen3 0.6B",           "repo_id": "Qwen/Qwen3-0.6B-GGUF",                       "params_b": 0.6,
+             "desc": "Tres petit modele generaliste multilingue (licence Apache 2.0). Convient a des taches simples et rapides, capacites limitees sur le raisonnement complexe."},
+            {"name": "Qwen3 1.7B",           "repo_id": "Qwen/Qwen3-1.7B-GGUF",                       "params_b": 1.7,
+             "desc": "Generaliste multilingue, Apache 2.0. Bon compromis pour un chat d'aide basique sur une petite config."},
+            {"name": "Qwen3 4B",             "repo_id": "Qwen/Qwen3-4B-GGUF",                         "params_b": 4.0,
+             "desc": "Generaliste multilingue, Apache 2.0. Nettement plus solide en raisonnement que les tailles 0.6-1.7B."},
+            {"name": "Qwen3 8B",             "repo_id": "Qwen/Qwen3-8B-GGUF",                         "params_b": 8.0,
+             "desc": "Generaliste multilingue, Apache 2.0. Bon equilibre qualite/vitesse sur une carte grand public (8-12 Go)."},
+            {"name": "Qwen3 14B",            "repo_id": "Qwen/Qwen3-14B-GGUF",                        "params_b": 14.0,
+             "desc": "Generaliste multilingue, Apache 2.0. Meilleur raisonnement, demande davantage de VRAM."},
+            {"name": "Qwen3 32B",            "repo_id": "Qwen/Qwen3-32B-GGUF",                        "params_b": 32.0,
+             "desc": "Generaliste multilingue haut de gamme de la famille Qwen3, Apache 2.0. Demande une configuration consequente."},
+            {"name": "Qwen3 30B-A3B (MoE)",  "repo_id": "Qwen/Qwen3-30B-A3B-GGUF",                    "params_b": 30.0,
+             "desc": "Mixture-of-Experts : 30 Md de parametres au total mais seulement ~3 Md actifs par requete (inference plus rapide qu'un dense de meme taille), Apache 2.0. Le fichier a telecharger reste base sur les 30 Md totaux."},
+            {"name": "Qwen2.5 Coder 7B",     "repo_id": "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",        "params_b": 7.0,  "coder": True,
+             "desc": "Specialise generation/comprehension de code, Apache 2.0. Bon choix pour le mode controle agentique (generation de scripts bpy)."},
+            {"name": "Qwen2.5 Coder 14B",    "repo_id": "Qwen/Qwen2.5-Coder-14B-Instruct-GGUF",       "params_b": 14.0, "coder": True,
+             "desc": "Specialise code, plus capable que la version 7B, Apache 2.0. Pour le mode controle agentique."},
+            {"name": "Qwen2.5 Coder 32B",    "repo_id": "Qwen/Qwen2.5-Coder-32B-Instruct-GGUF",       "params_b": 32.0, "coder": True,
+             "desc": "Le plus capable de la gamme Coder Qwen2.5, Apache 2.0. Pour le mode controle agentique, demande une grosse config."},
         ],
     },
     "llama": {
         "label": "Llama (Meta)",
         "note": "Quantizations communautaires (bartowski) : pas besoin d'accepter la licence Meta sur Hugging Face.",
         "models": [
-            {"name": "Llama 3.2 1B Instruct",   "repo_id": "bartowski/Llama-3.2-1B-Instruct-GGUF",        "params_b": 1.0},
-            {"name": "Llama 3.2 3B Instruct",   "repo_id": "bartowski/Llama-3.2-3B-Instruct-GGUF",        "params_b": 3.0},
-            {"name": "Llama 3.1 8B Instruct",   "repo_id": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",   "params_b": 8.0},
-            {"name": "Llama 3.3 70B Instruct",  "repo_id": "bartowski/Llama-3.3-70B-Instruct-GGUF",       "params_b": 70.0},
+            {"name": "Llama 3.2 1B Instruct",   "repo_id": "bartowski/Llama-3.2-1B-Instruct-GGUF",        "params_b": 1.0,
+             "desc": "Meta, tres leger, oriente usage embarque/edge. Licence communautaire Llama."},
+            {"name": "Llama 3.2 3B Instruct",   "repo_id": "bartowski/Llama-3.2-3B-Instruct-GGUF",        "params_b": 3.0,
+             "desc": "Meta, generaliste leger, meilleur que le 1B en raisonnement. Licence communautaire Llama."},
+            {"name": "Llama 3.1 8B Instruct",   "repo_id": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",   "params_b": 8.0,
+             "desc": "Modele generaliste de reference chez Meta a cette taille, tres largement utilise. Licence communautaire Llama."},
+            {"name": "Llama 3.3 70B Instruct",  "repo_id": "bartowski/Llama-3.3-70B-Instruct-GGUF",       "params_b": 70.0,
+             "desc": "Grand modele Meta, qualite proche des 70B precedents mais optimise. Demande une configuration tres consequente (24-32 Go+ meme quantise). Licence communautaire Llama."},
         ],
     },
     "gemma": {
         "label": "Gemma (Google)",
+        "note": "Modeles Google, generalement tres efficaces par rapport a leur taille.",
         "models": [
-            {"name": "Gemma 3 270M",  "repo_id": "bartowski/google_gemma-3-270m-it-GGUF", "params_b": 0.27},
-            {"name": "Gemma 3 1B",    "repo_id": "bartowski/google_gemma-3-1b-it-GGUF",   "params_b": 1.0},
-            {"name": "Gemma 3 4B",    "repo_id": "bartowski/google_gemma-3-4b-it-GGUF",   "params_b": 4.0},
-            {"name": "Gemma 3 12B",   "repo_id": "bartowski/google_gemma-3-12b-it-GGUF",  "params_b": 12.0},
-            {"name": "Gemma 3 27B",   "repo_id": "bartowski/google_gemma-3-27b-it-GGUF",  "params_b": 27.0},
+            {"name": "Gemma 3 270M",  "repo_id": "bartowski/google_gemma-3-270m-it-GGUF", "params_b": 0.27,
+             "desc": "Le plus petit modele Google Gemma 3, pense surtout pour du fine-tuning ou de l'embarque tres contraint. Capacites generalistes tres limitees."},
+            {"name": "Gemma 3 1B",    "repo_id": "bartowski/google_gemma-3-1b-it-GGUF",   "params_b": 1.0,
+             "desc": "Google, leger, correct pour des taches simples sur petite config."},
+            {"name": "Gemma 3 4B",    "repo_id": "bartowski/google_gemma-3-4b-it-GGUF",   "params_b": 4.0,
+             "desc": "Google, generaliste, supporte aussi l'entree image dans sa version d'origine (le GGUF text-only ici pour le chat)."},
+            {"name": "Gemma 3 12B",   "repo_id": "bartowski/google_gemma-3-12b-it-GGUF",  "params_b": 12.0,
+             "desc": "Google, generaliste plus capable, demande davantage de VRAM."},
+            {"name": "Gemma 3 27B",   "repo_id": "bartowski/google_gemma-3-27b-it-GGUF",  "params_b": 27.0,
+             "desc": "Le plus gros de la gamme Gemma 3, generaliste haut de gamme cote Google."},
         ],
     },
     "phi": {
         "label": "Phi (Microsoft)",
+        "note": "Modeles Microsoft, licence MIT, reputes pour leur raisonnement/maths a taille reduite.",
         "models": [
-            {"name": "Phi-4 Mini (3.8B)", "repo_id": "bartowski/microsoft_Phi-4-mini-instruct-GGUF", "params_b": 3.8},
-            {"name": "Phi-4 (14B)",       "repo_id": "bartowski/microsoft_phi-4-GGUF",               "params_b": 14.0},
+            {"name": "Phi-4 Mini (3.8B)", "repo_id": "bartowski/microsoft_Phi-4-mini-instruct-GGUF", "params_b": 3.8,
+             "desc": "Microsoft, licence MIT, reputee solide en maths/raisonnement pour sa taille malgre un format compact."},
+            {"name": "Phi-4 (14B)",       "repo_id": "bartowski/microsoft_phi-4-GGUF",               "params_b": 14.0,
+             "desc": "Microsoft, licence MIT, bon niveau de raisonnement/maths pour sa taille."},
         ],
     },
     "mistral": {
         "label": "Mistral / Ministral",
+        "note": "Modeles Mistral AI (France), Apache 2.0 pour Mistral 7B.",
         "models": [
-            {"name": "Ministral 8B Instruct",       "repo_id": "bartowski/Ministral-8B-Instruct-2410-GGUF", "params_b": 8.0},
-            {"name": "Mistral 7B Instruct v0.3",    "repo_id": "bartowski/Mistral-7B-Instruct-v0.3-GGUF",   "params_b": 7.0},
+            {"name": "Ministral 8B Instruct",       "repo_id": "bartowski/Ministral-8B-Instruct-2410-GGUF", "params_b": 8.0,
+             "desc": "Mistral AI, modele compact oriente usage local/edge, bon support multilingue europeen."},
+            {"name": "Mistral 7B Instruct v0.3",    "repo_id": "bartowski/Mistral-7B-Instruct-v0.3-GGUF",   "params_b": 7.0,
+             "desc": "Mistral AI, generaliste tres largement utilise depuis sa sortie, Apache 2.0."},
         ],
     },
     "smollm": {
         "label": "SmolLM (Hugging Face)",
+        "note": "Modeles entierement ouverts de Hugging Face (donnees d'entrainement incluses), tres compacts.",
         "models": [
-            {"name": "SmolLM2 135M Instruct", "repo_id": "HuggingFaceTB/SmolLM2-135M-Instruct-GGUF",   "params_b": 0.135},
-            {"name": "SmolLM2 360M Instruct", "repo_id": "HuggingFaceTB/SmolLM2-360M-Instruct-GGUF",   "params_b": 0.36},
-            {"name": "SmolLM2 1.7B Instruct", "repo_id": "HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF",   "params_b": 1.7},
-            {"name": "SmolLM3 3B",            "repo_id": "bartowski/HuggingFaceTB_SmolLM3-3B-GGUF",    "params_b": 3.0},
+            {"name": "SmolLM2 135M Instruct", "repo_id": "HuggingFaceTB/SmolLM2-135M-Instruct-GGUF",   "params_b": 0.135,
+             "desc": "Le plus petit modele de Hugging Face, entierement ouvert (donnees d'entrainement incluses). Capacites tres limitees, surtout utile pour tester le pipeline."},
+            {"name": "SmolLM2 360M Instruct", "repo_id": "HuggingFaceTB/SmolLM2-360M-Instruct-GGUF",   "params_b": 0.36,
+             "desc": "Hugging Face, entierement ouvert. Legerement plus capable que le 135M, reste tres limite."},
+            {"name": "SmolLM2 1.7B Instruct", "repo_id": "HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF",   "params_b": 1.7,
+             "desc": "Hugging Face, entierement ouvert. Le plus capable de la serie SmolLM2, correct pour des taches simples."},
+            {"name": "SmolLM3 3B",            "repo_id": "bartowski/HuggingFaceTB_SmolLM3-3B-GGUF",    "params_b": 3.0,
+             "desc": "Hugging Face, generation suivante de SmolLM, generaliste multilingue compact."},
         ],
     },
     "tinyllama": {
         "label": "TinyLlama",
+        "note": "Modele communautaire classique, tres leger, capacites limitees.",
         "models": [
-            {"name": "TinyLlama 1.1B Chat", "repo_id": "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF", "params_b": 1.1},
+            {"name": "TinyLlama 1.1B Chat", "repo_id": "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF", "params_b": 1.1,
+             "desc": "Modele communautaire tres connu et tres leger, capacites limitees. Surtout utile pour tester rapidement une chaine d'inference."},
         ],
     },
     "glm": {
         "label": "GLM (Zhipu)",
+        "note": "Modeles Zhipu AI, reconnus pour le function calling / appel d'outils.",
         "models": [
-            {"name": "GLM-4 9B Chat", "repo_id": "bartowski/THUDM_glm-4-9b-chat-GGUF", "params_b": 9.0},
+            {"name": "GLM-4 9B Chat", "repo_id": "bartowski/THUDM_glm-4-9b-chat-GGUF", "params_b": 9.0,
+             "desc": "Zhipu AI, generaliste reconnu pour son bon support du function calling / appel d'outils."},
         ],
     },
     "deepseek": {
         "label": "DeepSeek (distill R1)",
         "note": "Distillations de DeepSeek-R1 sur des backbones Qwen/Llama, pas des modeles DeepSeek natifs (ceux-ci font plusieurs centaines de Go).",
         "models": [
-            {"name": "DeepSeek-R1-Distill-Qwen 1.5B",  "repo_id": "bartowski/DeepSeek-R1-Distill-Qwen-1.5B-GGUF",  "params_b": 1.5},
-            {"name": "DeepSeek-R1-Distill-Llama 8B",   "repo_id": "bartowski/DeepSeek-R1-Distill-Llama-8B-GGUF",  "params_b": 8.0},
+            {"name": "DeepSeek-R1-Distill-Qwen 1.5B",  "repo_id": "bartowski/DeepSeek-R1-Distill-Qwen-1.5B-GGUF",  "params_b": 1.5,
+             "desc": "Distillation du raisonnement pas-a-pas de DeepSeek-R1 sur un petit backbone Qwen. Meilleur en logique/maths qu'un generaliste de meme taille, mais plus lent (raisonne en plusieurs etapes avant de repondre)."},
+            {"name": "DeepSeek-R1-Distill-Llama 8B",   "repo_id": "bartowski/DeepSeek-R1-Distill-Llama-8B-GGUF",  "params_b": 8.0,
+             "desc": "Meme principe que la version Qwen 1.5B mais sur un backbone Llama 8B : raisonnement pas-a-pas plus solide, reponses plus lentes."},
         ],
     },
     "kimi": {
         "label": "Kimi (Moonshot)",
         "note": "MoE d'environ 1000 Md de parametres au total : ne tient dans aucun budget de ce panneau (1-32 Go), meme tres quantise. Liste a titre informatif.",
         "models": [
-            {"name": "Kimi K2 Instruct", "repo_id": "moonshotai/Kimi-K2-Instruct", "params_b": 1000.0},
+            {"name": "Kimi K2 Instruct", "repo_id": "moonshotai/Kimi-K2-Instruct", "params_b": 1000.0,
+             "desc": "Immense modele MoE de Moonshot AI (~1000 Md de parametres au total). Hors de portee d'un PC grand public meme en quantization agressive (des centaines de Go necessaires) ; liste ici uniquement a titre informatif."},
+        ],
+    },
+    "gen3d": {
+        "label": "Generation 3D (image/texte -> mesh)",
+        "note": (
+            "Modeles de GENERATION D'OBJETS 3D (image ou texte -> mesh texture), pas "
+            "des LLM de chat : ils ne passent PAS par Ollama et ce panneau ne sait "
+            "pas les executer. Listes ici pour la recherche et la reference, avec un "
+            "lien direct vers leur page Hugging Face (installation via un "
+            "environnement Python dedie - diffusers/ComfyUI selon le modele)."
+        ),
+        "chat_compatible": False,
+        "models": [
+            {"name": "TRELLIS.2-4B", "repo_id": "microsoft/TRELLIS.2-4B", "params_b": 4.0, "non_gguf": True,
+             "desc": "Microsoft, MIT. Generation image-vers-3D haute fidelite (topologie arbitraire, materiaux PBR, jusqu'a 1536^3), sortie mesh texture. Tres efficace pour de la conception 3D mais gourmand (~24 Go de VRAM recommandes) et teste surtout sous Linux."},
+            {"name": "TRELLIS (image-large)", "repo_id": "microsoft/TRELLIS-image-large", "params_b": 1.2, "non_gguf": True,
+             "desc": "Microsoft, MIT. Version precedente de TRELLIS, plus legere que TRELLIS.2, toujours une reference solide pour l'image-vers-3D."},
+            {"name": "Hunyuan3D-2", "repo_id": "tencent/Hunyuan3D-2", "params_b": 0.0, "non_gguf": True,
+             "desc": "Tencent. Genere des meshes textures haute resolution a partir d'image ou de texte, tres reputee en conception d'assets 3D ; pipeline Diffusers/Safetensors, licence communautaire Tencent-Hunyuan."},
+            {"name": "TripoSR", "repo_id": "stabilityai/TripoSR", "params_b": 0.0, "non_gguf": True,
+             "desc": "Stability AI. Reconstruction 3D a partir d'une seule image, tres rapide et legere : bon point d'entree si le materiel est modeste."},
+            {"name": "InstantMesh", "repo_id": "TencentARC/InstantMesh", "params_b": 0.0, "non_gguf": True,
+             "desc": "Tencent ARC, Apache 2.0. Genere un mesh 3D a partir d'une image en environ 10 secondes (diffusion multi-vue + reconstruction LRM)."},
+            {"name": "Shap-E", "repo_id": "openai/shap-e", "params_b": 0.0, "non_gguf": True,
+             "desc": "OpenAI, MIT. Plus ancien et beaucoup plus leger que les modeles ci-dessus (texte/image -> objet 3D), qualite modeste mais utile sur config tres limitee."},
         ],
     },
 }
@@ -287,6 +353,8 @@ def recommend_models(vram_budget_gb, prefer_coder=False):
     recommendations = []
 
     for family_key, entry in iter_all_models():
+        if not FAMILIES[family_key].get("chat_compatible", True):
+            continue  # ex. generation 3D : pas des LLM de chat, hors scope de ce scan
         if prefer_coder and not entry.get("coder"):
             continue
 
@@ -310,6 +378,7 @@ def recommend_models(vram_budget_gb, prefer_coder=False):
                 "size_gb": size_gb,
                 "params_b": entry["params_b"],
                 "online": online,
+                "desc": entry.get("desc", ""),
             })
 
     # Meilleur = le plus gros nombre de parametres qui tient dans le budget.
@@ -331,6 +400,11 @@ class LLMModelItem(bpy.types.PropertyGroup):
     online: bpy.props.BoolProperty()
     downloaded: bpy.props.BoolProperty(default=False)
     local_path: bpy.props.StringProperty()
+    desc: bpy.props.StringProperty()
+    is_llm: bpy.props.BoolProperty(
+        default=True,
+        description="Faux pour un modele de generation 3D (non pilotable via Ollama)",
+    )
 
 
 # Caches module-level pour les items d'EnumProperty dynamiques : Blender
@@ -355,7 +429,8 @@ def _variant_enum_items(self, context):
         _variant_enum_cache = [("NONE", "-", "")]
         return _variant_enum_cache
     _variant_enum_cache = [
-        (str(i), m["name"], m["repo_id"]) for i, m in enumerate(family["models"])
+        (str(i), m["name"], f"{m.get('desc', '')} (repo : {m['repo_id']})")
+        for i, m in enumerate(family["models"])
     ]
     return _variant_enum_cache
 
@@ -393,6 +468,16 @@ class LLMAssistantSettings(bpy.types.PropertyGroup):
     browse_scanning: bpy.props.BoolProperty(default=False)
     browse_status: bpy.props.StringProperty(default="")
     browse_results: bpy.props.CollectionProperty(type=LLMModelItem)
+
+    # --- Recherche libre (toutes familles confondues, LLM + generation 3D) ---
+    search_query: bpy.props.StringProperty(
+        name="Rechercher",
+        description="Filtre tout le catalogue par nom, famille ou mot-cle "
+                    "(ex. 'coder', 'TRELLIS', 'leger') - ignore le budget VRAM",
+    )
+    searching: bpy.props.BoolProperty(default=False)
+    search_status: bpy.props.StringProperty(default="")
+    search_results: bpy.props.CollectionProperty(type=LLMModelItem)
 
     download_status: bpy.props.StringProperty(default="")
     downloading: bpy.props.BoolProperty(default=False)
@@ -453,6 +538,7 @@ def _poll_scan_result():
             item.size_gb = m["size_gb"]
             item.params_b = m["params_b"]
             item.online = m["online"]
+            item.desc = m.get("desc", "")
         settings.scan_status = (
             f"{len(models)} modele(s) trouve(s)" if models
             else "Aucun modele ne tient dans ce budget (essaie d'augmenter le curseur, "
@@ -496,17 +582,17 @@ class LLM_OT_scan_models(bpy.types.Operator):
 # ---------------------------------------------------------------------------
 
 _browse_lock = threading.Lock()
-_browse_buffer = {"done": False, "options": [], "error": None, "name": "", "repo_id": ""}
+_browse_buffer = {"done": False, "options": [], "error": None, "name": "", "repo_id": "", "desc": ""}
 
 
-def _browse_worker(repo_id, params_b, name):
+def _browse_worker(repo_id, params_b, name, desc):
     try:
         options = list_quant_options(repo_id, params_b)
         with _browse_lock:
-            _browse_buffer.update(done=True, options=options, error=None, name=name, repo_id=repo_id)
+            _browse_buffer.update(done=True, options=options, error=None, name=name, repo_id=repo_id, desc=desc)
     except Exception as exc:
         with _browse_lock:
-            _browse_buffer.update(done=True, options=[], error=str(exc), name=name, repo_id=repo_id)
+            _browse_buffer.update(done=True, options=[], error=str(exc), name=name, repo_id=repo_id, desc=desc)
 
 
 def _poll_browse_result():
@@ -520,6 +606,7 @@ def _poll_browse_result():
         error = _browse_buffer["error"]
         name = _browse_buffer["name"]
         repo_id = _browse_buffer["repo_id"]
+        desc = _browse_buffer["desc"]
         _browse_buffer.update(done=False, options=[], error=None)
 
     for scene in bpy.data.scenes:
@@ -537,6 +624,7 @@ def _poll_browse_result():
             item.quant = quant
             item.size_gb = size_gb
             item.online = online
+            item.desc = desc
         settings.browse_status = (
             f"{len(options)} quantization(s) trouvee(s)" if options
             else "Aucune info trouvee pour ce modele"
@@ -565,13 +653,146 @@ class LLM_OT_browse_scan(bpy.types.Operator):
         settings.browse_scanning = True
         settings.browse_status = "Recherche en cours..."
 
+        if entry.get("non_gguf"):
+            # Pas un modele GGUF/Ollama : pas de scan reseau de quantizations,
+            # juste une entree pointant vers sa page Hugging Face.
+            settings.browse_scanning = False
+            settings.browse_results.clear()
+            item = settings.browse_results.add()
+            item.display_name = entry["name"]
+            item.repo_id = entry["repo_id"]
+            item.desc = entry.get("desc", "")
+            item.is_llm = False
+            settings.browse_status = (
+                "Pas un modele de chat GGUF compatible Ollama : ce panneau ne "
+                "sait pas l'executer. Ouvre sa page Hugging Face (icone lien) "
+                "pour son propre environnement d'installation."
+            )
+            return {'FINISHED'}
+
         thread = threading.Thread(
             target=_browse_worker,
-            args=(entry["repo_id"], entry["params_b"], entry["name"]),
+            args=(entry["repo_id"], entry["params_b"], entry["name"], entry.get("desc", "")),
             daemon=True,
         )
         thread.start()
         bpy.app.timers.register(_poll_browse_result, first_interval=0.3)
+        return {'FINISHED'}
+
+
+# ---------------------------------------------------------------------------
+# Recherche libre - filtre tout le catalogue (LLM + generation 3D) par
+# mot-cle, sans tenir compte du budget VRAM (recherche nominative, pas
+# recommandation).
+# ---------------------------------------------------------------------------
+
+_search_lock = threading.Lock()
+_search_buffer = {"done": False, "results": [], "error": None}
+
+
+def _search_worker(query):
+    needle = query.strip().lower()
+    matches = []
+    for family_key, entry in iter_all_models():
+        haystack = " ".join([
+            entry["name"], entry["repo_id"], FAMILIES[family_key]["label"],
+            entry.get("desc", ""),
+        ]).lower()
+        if needle in haystack:
+            matches.append((family_key, entry))
+
+    results = []
+    try:
+        for family_key, entry in matches:
+            if entry.get("non_gguf"):
+                results.append({
+                    "name": entry["name"], "family": family_key,
+                    "repo_id": entry["repo_id"], "filename": "", "quant": "",
+                    "size_gb": 0.0, "online": False, "is_llm": False,
+                    "desc": entry.get("desc", ""),
+                })
+                continue
+
+            options = list_quant_options(entry["repo_id"], entry["params_b"])
+            best = None
+            for quant in QUANT_PREFERENCE:
+                best = next((o for o in options if o[1] == quant), None)
+                if best:
+                    break
+            if best is None and options:
+                best = options[0]
+            if best:
+                fname, quant, size_gb, online = best
+                results.append({
+                    "name": entry["name"], "family": family_key,
+                    "repo_id": entry["repo_id"], "filename": fname,
+                    "quant": quant, "size_gb": size_gb, "online": online,
+                    "is_llm": True, "desc": entry.get("desc", ""),
+                })
+        with _search_lock:
+            _search_buffer.update(done=True, results=results, error=None)
+    except Exception as exc:
+        with _search_lock:
+            _search_buffer.update(done=True, results=[], error=str(exc))
+
+
+def _poll_search_result():
+    with _search_lock:
+        done = _search_buffer["done"]
+    if not done:
+        return 0.3
+
+    with _search_lock:
+        results = _search_buffer["results"]
+        error = _search_buffer["error"]
+        _search_buffer.update(done=False, results=[], error=None)
+
+    for scene in bpy.data.scenes:
+        settings = scene.llm_assistant
+        settings.searching = False
+        settings.search_results.clear()
+        if error:
+            settings.search_status = f"Erreur : {error}"
+            continue
+        for r in results:
+            item = settings.search_results.add()
+            item.display_name = f"[{FAMILIES[r['family']]['label']}] {r['name']}"
+            item.repo_id = r["repo_id"]
+            item.filename = r["filename"]
+            item.quant = r["quant"]
+            item.size_gb = r["size_gb"]
+            item.online = r["online"]
+            item.is_llm = r["is_llm"]
+            item.desc = r.get("desc", "")
+        settings.search_status = (
+            f"{len(results)} resultat(s)" if results
+            else "Aucun modele ne correspond a cette recherche"
+        )
+    return None
+
+
+class LLM_OT_search_catalog(bpy.types.Operator):
+    """Cherche dans tout le catalogue (LLM et generation 3D) par nom,
+    famille ou mot-cle, sans tenir compte du budget VRAM"""
+    bl_idname = "llm.search_catalog"
+    bl_label = "Rechercher"
+
+    def execute(self, context):
+        settings = context.scene.llm_assistant
+        if not settings.search_query.strip():
+            self.report({'WARNING'}, "Tape un mot-cle a rechercher")
+            return {'CANCELLED'}
+
+        settings.searching = True
+        settings.search_status = "Recherche en cours..."
+
+        thread = threading.Thread(
+            target=_search_worker,
+            args=(settings.search_query,),
+            daemon=True,
+        )
+        thread.start()
+        bpy.app.timers.register(_poll_search_result, first_interval=0.3)
         return {'FINISHED'}
 
 
@@ -831,20 +1052,52 @@ class LLM_OT_execute_code(bpy.types.Operator):
 # UI
 # ---------------------------------------------------------------------------
 
+class LLM_OT_model_info(bpy.types.Operator):
+    """Bouton d'information : n'a aucun effet au clic, sert uniquement a
+    afficher une description au survol (tooltip dynamique via la methode
+    description(), pattern standard de l'API Blender pour ce cas)"""
+    bl_idname = "llm.model_info"
+    bl_label = ""
+    bl_options = {'INTERNAL'}
+
+    info_text: bpy.props.StringProperty()
+
+    @classmethod
+    def description(cls, context, properties):
+        return properties.info_text or "Pas de description disponible pour ce modele."
+
+    def execute(self, context):
+        return {'FINISHED'}
+
+
 def _draw_model_list(box, settings, collection_name):
     coll = getattr(settings, collection_name)
     for i, item in enumerate(coll):
         row = box.row(align=True)
-        label = f"{item.display_name} - {item.quant} (~{item.size_gb} Go)"
-        if not item.online:
-            label += " [estimation]"
-        row.label(text=label)
-        if item.downloaded:
+        if item.is_llm:
+            label = f"{item.display_name} - {item.quant} (~{item.size_gb} Go)"
+            if not item.online:
+                label += " [estimation]"
+        else:
+            label = f"{item.display_name} [generation 3D, hors Ollama]"
+        info_op = row.operator(
+            LLM_OT_model_info.bl_idname, text=label, icon='INFO', emboss=False,
+        )
+        info_op.info_text = item.desc or "Pas de description disponible pour ce modele."
+
+        if not item.is_llm:
+            # Modele de generation 3D : pas de flux telechargement/Ollama,
+            # juste un lien direct vers sa page Hugging Face.
+            url_op = row.operator("wm.url_open", text="", icon='URL')
+            url_op.url = f"https://huggingface.co/{item.repo_id}"
+        elif item.downloaded:
             op = row.operator(LLM_OT_register_ollama.bl_idname, text="", icon='CHECKMARK')
+            op.index = i
+            op.collection = collection_name
         else:
             op = row.operator(LLM_OT_download_model.bl_idname, text="", icon='IMPORT')
-        op.index = i
-        op.collection = collection_name
+            op.index = i
+            op.collection = collection_name
 
 
 class LLM_PT_panel(bpy.types.Panel):
@@ -886,6 +1139,21 @@ class LLM_PT_panel(bpy.types.Panel):
                 box.label(text=line)
 
         _draw_model_list(box, settings, "recommended_models")
+
+        # --- Recherche libre dans tout le catalogue ---
+        box = layout.box()
+        box.label(text="Rechercher un modele", icon='VIEWZOOM')
+        row = box.row(align=True)
+        row.prop(settings, "search_query", text="")
+        sub = row.row()
+        sub.enabled = not settings.searching
+        sub.operator(
+            LLM_OT_search_catalog.bl_idname,
+            text="..." if settings.searching else "OK",
+        )
+        if settings.search_status:
+            box.label(text=settings.search_status)
+        _draw_model_list(box, settings, "search_results")
 
         # --- Navigation manuelle par famille ---
         box = layout.box()
@@ -945,8 +1213,10 @@ classes = (
     LLM_OT_install_deps,
     LLM_OT_scan_models,
     LLM_OT_browse_scan,
+    LLM_OT_search_catalog,
     LLM_OT_download_model,
     LLM_OT_register_ollama,
+    LLM_OT_model_info,
     LLM_OT_send_chat,
     LLM_OT_execute_code,
     LLM_PT_panel,
