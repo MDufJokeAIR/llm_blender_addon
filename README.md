@@ -133,47 +133,14 @@ Restart Blender afterwards.
 regular `ollama pull` command line, then type the model name into that
 field — the buttons are a convenience, not a requirement.
 
-**Searching the catalog**: the **"Search a model"** box (below the VRAM
-recommendation list) filters the *entire* catalog — every family, plus
-the 3D-generation entries described below — by name, family or keyword
-(e.g. `coder`, `trellis`, `gemma`). It ignores the VRAM slider entirely,
-since it's a search by name, not a budget-based recommendation: useful to
-jump straight to a specific model you already have in mind.
-
 **Browsing manually by family**: instead of the automatic scan, the
 **"Browse by family"** box lets you pick a family from a dropdown (Qwen,
-Llama, Gemma, Phi, Mistral, SmolLM, TinyLlama, GLM, DeepSeek, Kimi,
-Generation 3D...), then a specific model from a second dropdown — each
-entry's tooltip already shows a short description. Click **"Check
-available sizes"** to list every quantization Hugging Face has for that
-specific model, regardless of your VRAM slider, then download/register
-any of them the same way as above.
-
-**3D-generation models (TRELLIS.2, TRELLIS, Hunyuan3D-2, TripoSR,
-InstantMesh, Shap-E)**: these are image/text-to-mesh generators, not
-chat LLMs — they don't run through Ollama and this addon can't execute
-them, so their row shows two icons instead of the usual download/register
-ones:
-
-- **Link icon** — opens the model's Hugging Face page.
-- **Install icon** — best-effort automated setup: clones the model's
-  GitHub repo, creates a dedicated Python virtual environment (kept
-  separate from Blender's own Python, under
-  `<models folder>/gen3d_envs/<model name>/`), installs its `pip`
-  dependencies, and downloads its weights from Hugging Face. This turns
-  to a checkmark once done.
-
-  This is **not** the same guarantee as the Ollama flow: these models
-  don't share a universal runtime, and some of them need extra manual
-  steps beyond plain `pip install` (a CUDA compiler, platform-specific
-  precompiled wheels...) — read the model's tooltip description before
-  installing, it flags the ones known to need more. If a step fails, the
-  status message shows the real error output from the command that
-  failed rather than a generic message, so you can act on it directly.
-  Even after a successful install, actually *generating* a mesh isn't
-  wired into this addon yet — you'd run the cloned repo's own script
-  from its virtual environment (see that repo's own README, now sitting
-  in `<env folder>/repo/`).
+Llama, Gemma, Phi, Mistral, SmolLM, TinyLlama, GLM, DeepSeek, Kimi...),
+then a specific model from a second dropdown — each entry's tooltip
+already shows a short description. Click **"Check available sizes"** to
+list every quantization Hugging Face has for that specific model,
+regardless of your VRAM slider, then download/register any of them the
+same way as above.
 
 ---
 
@@ -199,7 +166,40 @@ Two checkboxes at the top change the addon's behavior:
 
 ---
 
-## 7. Troubleshooting
+## 7. 3D generation (image / text → mesh)
+
+The **3D generation** box runs [TRELLIS.2](https://huggingface.co/microsoft/TRELLIS.2-4B)
+(MIT) fully locally through [trellis.cpp](https://github.com/pwilkin/trellis.cpp),
+a C++/ggml runtime with GGUF weights and a resident HTTP server — no Python or
+PyTorch needed at run time. It is **not** an Ollama model: Ollama only runs
+text LLMs, so 3D generation uses its own server.
+
+Follow the numbered steps in the panel:
+
+1. **Runtime** — runs the project's official installer in non-interactive mode
+   (runtime only, a few tens of MB; no weights, no desktop app). Supported on
+   Linux and Windows. On macOS, get/build trellis.cpp yourself and fill in
+   *trellis-server binary*.
+2. **Weights** — the *3D VRAM* slider picks the quantization tier: **f16**
+   (~16.5 GB), **q8** (~9.5 GB) or **q4** (~6 GB). The 10 GGUF files are
+   downloaded with a progress bar, speed and remaining time. Downloads are
+   resumable and can be cancelled; re-running skips files already complete.
+3. **Server** — *Start* launches `trellis-server` (default `127.0.0.1:8080`)
+   with the downloaded weights; the first start loads the pipeline onto the
+   GPU and can take a moment. The log is kept in `<3D folder>/logs/`.
+4. **Source** — an image, or a text prompt. Text mode is a two-step pipeline:
+   Z-Image (via [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp))
+   makes the image, then TRELLIS.2 makes the mesh. You must provide the
+   `sd-cli` binary yourself (build it or take a release), then use
+   *Download Z-Image weights* (diffusion + text encoder + VAE).
+5. **Generate** — sends the image to the server and imports the resulting
+   `.glb` into the scene. The per-stage progress (`[k/6]`) comes from the
+   server log. Published timings: roughly 3–7 min on a dedicated GPU,
+   6–13 min on an iGPU.
+
+---
+
+## 8. Troubleshooting
 
 **"Ollama unreachable" in the chat**
 Check that Ollama is actually running (`ollama -v` in a terminal, or the
@@ -237,9 +237,25 @@ This means the addon couldn't reach the Hugging Face API during the scan
 estimate — treat these numbers, and any download attempted from them, as
 approximate.
 
+**3D: the runtime install or a download looks stuck**
+Use the **Cancel** button; downloads resume where they stopped. Older versions
+of this addon ran the official installer *with* its interactive
+`Proceed? [Y/n]` prompt (it blocks forever without a console on Windows) and
+read its output line by line, while curl's progress bar only emits carriage
+returns — so the UI looked frozen. Both are fixed.
+
+**3D: "unreachable" right after Start**
+The server answers `/health` before the pipeline is fully loaded; wait for the
+*"Serveur prêt"* status. If the URL field still shows `8787` from an older
+version, set it to `http://127.0.0.1:8080` (the real default).
+
+**3D: "refused the request (HTTP 500)"**
+The message includes the server's own error (typically a missing weight file).
+Re-run *Download TRELLIS.2 weights* and check the log in `<3D folder>/logs/`.
+
 ---
 
-## 8. Uninstalling
+## 9. Uninstalling
 
 **Edit > Preferences > Add-ons**, find "Local LLM Assistant", expand it
 and click **Remove**. Downloaded `.gguf` files and models registered in
